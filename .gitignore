@@ -1,0 +1,14 @@
+node_modules/
+dist/
+*.log
+.env
+.env.local
+.DS_Store
+*.sqlite
+*.sqlite-journal
+
+# Solana CLI keypair files — secret keys, never commit
+*-keypair.json
+sen2*.json
+keys/
+TROUBLESHOOTING.md

@@ -1,0 +1,433 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How sen2 Keeps Your Messages Safe</title>
+<style>
+  :root {
+    --cream: #fdf6ec;
+    --ink: #2b2b3a;
+    --soft: #6b6b80;
+    --alice: #f4a83a;        /* warm yellow-orange */
+    --alice-soft: #fde3b8;
+    --bob: #3a8df4;          /* cool blue */
+    --bob-soft: #c8e0fb;
+    --shared: #6e3aa8;       /* purple = mix of warm + cool */
+    --shared-soft: #e0d4f1;
+    --eve: #8a8a96;
+    --eve-soft: #e6e6ea;
+    --card: #ffffff;
+    --shadow: 0 6px 24px rgba(43, 43, 58, 0.08);
+    --r: 18px;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background: var(--cream);
+    color: var(--ink);
+    line-height: 1.65;
+    font-size: 18px;
+  }
+  .wrap { max-width: 820px; margin: 0 auto; padding: 64px 24px 96px; }
+  h1 {
+    font-size: 2.6rem;
+    line-height: 1.1;
+    margin: 0 0 12px;
+    letter-spacing: -0.02em;
+  }
+  h2 {
+    font-size: 1.7rem;
+    margin: 56px 0 8px;
+    letter-spacing: -0.01em;
+  }
+  h3 {
+    font-size: 1.15rem;
+    margin: 24px 0 6px;
+    color: var(--soft);
+    font-weight: 600;
+  }
+  .lede {
+    font-size: 1.2rem;
+    color: var(--soft);
+    margin: 0 0 32px;
+  }
+  .card {
+    background: var(--card);
+    border-radius: var(--r);
+    padding: 28px;
+    box-shadow: var(--shadow);
+    margin: 20px 0;
+  }
+  .row {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    margin: 24px 0;
+  }
+  .person {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+  }
+  .avatar {
+    width: 92px; height: 92px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 2.4rem; font-weight: 700;
+    color: white;
+    box-shadow: var(--shadow);
+  }
+  .avatar.alice { background: var(--alice); }
+  .avatar.bob { background: var(--bob); }
+  .avatar.eve {
+    background: var(--eve-soft);
+    color: var(--eve);
+    border: 3px dashed var(--eve);
+    box-shadow: none;
+  }
+  .name { font-weight: 700; }
+  .role { color: var(--soft); font-size: 0.9rem; }
+
+  .paint-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+    margin: 24px 0;
+  }
+  .paint-col {
+    background: var(--cream);
+    border-radius: var(--r);
+    padding: 20px;
+    text-align: center;
+  }
+  .paint-col h4 {
+    margin: 0 0 12px;
+    font-size: 1.05rem;
+  }
+  .blob {
+    display: inline-block;
+    width: 70px; height: 70px;
+    border-radius: 50%;
+    margin: 6px;
+    vertical-align: middle;
+  }
+  .blob.starting { background: #e5cf8f; }
+  .blob.alice-secret { background: var(--alice); border: 3px solid #c98727; }
+  .blob.bob-secret { background: var(--bob); border: 3px solid #2769c7; }
+  .blob.alice-public { background: #e8943a; }     /* starting + alice = orange */
+  .blob.bob-public { background: #3aa886; }       /* starting + bob = greenish */
+  .blob.shared { background: var(--shared); }
+  .secret-tag {
+    display: inline-block;
+    background: #fff4cc;
+    color: #8a6d10;
+    padding: 2px 10px;
+    border-radius: 999px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    margin-left: 6px;
+  }
+  .public-tag {
+    display: inline-block;
+    background: #d8ecff;
+    color: #1f5aa0;
+    padding: 2px 10px;
+    border-radius: 999px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    margin-left: 6px;
+  }
+  .plus { font-size: 2rem; color: var(--soft); margin: 0 6px; vertical-align: middle; }
+  .arrow { font-size: 2rem; color: var(--soft); margin: 0 6px; vertical-align: middle; }
+
+  .step {
+    display: grid;
+    grid-template-columns: 56px 1fr;
+    gap: 18px;
+    margin: 16px 0;
+    align-items: start;
+  }
+  .step-num {
+    width: 44px; height: 44px;
+    border-radius: 50%;
+    background: var(--ink);
+    color: var(--cream);
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700;
+    font-size: 1.1rem;
+  }
+  .step p { margin: 4px 0; }
+
+  .ledger {
+    background: #1d1d28;
+    color: #b9b9c8;
+    border-radius: var(--r);
+    padding: 22px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.92rem;
+    overflow-x: auto;
+  }
+  .ledger .pub { color: #f4a83a; }
+  .ledger .scram { color: #6b6b80; word-break: break-all; }
+  .ledger .label { color: #6c8bca; }
+
+  .compare {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 18px;
+    margin: 18px 0;
+  }
+  .compare .panel {
+    background: var(--cream);
+    border-radius: var(--r);
+    padding: 18px;
+  }
+  .compare .panel.alice { border-left: 6px solid var(--alice); }
+  .compare .panel.bob { border-left: 6px solid var(--bob); }
+  .compare .panel.eve { border-left: 6px solid var(--eve); }
+
+  .key-row { display: flex; gap: 16px; margin: 14px 0; flex-wrap: wrap; }
+  .key {
+    flex: 1; min-width: 240px;
+    background: var(--cream);
+    border-radius: var(--r);
+    padding: 18px;
+  }
+  .key h4 { margin: 0 0 4px; font-size: 1.05rem; }
+  .key.public { border-left: 6px solid var(--bob); }
+  .key.private { border-left: 6px solid var(--alice); }
+
+  .takeaways {
+    background: var(--shared-soft);
+    border-radius: var(--r);
+    padding: 22px;
+    margin: 24px 0;
+  }
+  .takeaways h3 { color: var(--shared); margin-top: 0; }
+  .takeaways ul { padding-left: 20px; }
+  .takeaways li { margin: 8px 0; }
+
+  .warn {
+    background: #fff4e0;
+    border-left: 6px solid #d49317;
+    padding: 18px 22px;
+    border-radius: 12px;
+    margin: 24px 0;
+  }
+  .warn h3 { margin-top: 0; color: #8a6d10; }
+
+  .footer {
+    margin-top: 64px;
+    color: var(--soft);
+    font-size: 0.95rem;
+    text-align: center;
+  }
+
+  @media (max-width: 640px) {
+    .paint-row { grid-template-columns: 1fr; }
+    .compare { grid-template-columns: 1fr; }
+    h1 { font-size: 2rem; }
+    .wrap { padding: 32px 16px 64px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>How sen2 Keeps Your Messages Safe</h1>
+  <p class="lede">A picture story for anyone who wants to know why only the right people can read a sen2 message — even though every message is written on a giant public wall for the whole world to see.</p>
+
+  <!-- ============================================================= -->
+  <h2>Meet our friends</h2>
+  <div class="card">
+    <div class="row">
+      <div class="person">
+        <div class="avatar alice">A</div>
+        <div class="name">Alice</div>
+        <div class="role">wants to send a secret note</div>
+      </div>
+      <div class="person">
+        <div class="avatar bob">B</div>
+        <div class="name">Bob</div>
+        <div class="role">wants to read Alice's note</div>
+      </div>
+      <div class="person">
+        <div class="avatar eve">E</div>
+        <div class="name">Eve</div>
+        <div class="role">is nosy — tries to peek!</div>
+      </div>
+    </div>
+    <p>Alice wants to write a message to Bob. The problem? She has to write it on a <strong>giant bulletin board</strong> in the middle of town. Everyone walking by — including Eve — can read whatever is on that board. So how can Alice send something only Bob can understand?</p>
+  </div>
+
+  <!-- ============================================================= -->
+  <h2>Everyone has two keys</h2>
+  <p>In sen2, every person has <strong>two special keys</strong> that go together — like a matching pair.</p>
+
+  <div class="key-row">
+    <div class="key public">
+      <h4>🔓 The "Open Key"</h4>
+      <p>You give this one to <em>everybody</em>. It's like a padlock you hand out so others can lock boxes <em>for</em> you.</p>
+      <p>Computer name: <strong>public key</strong>.</p>
+    </div>
+    <div class="key private">
+      <h4>🔑 The "Secret Key"</h4>
+      <p>You keep this one hidden forever. <em>Only you</em> have it. It's the only thing that opens boxes locked with your padlock.</p>
+      <p>Computer name: <strong>private key</strong>.</p>
+    </div>
+  </div>
+
+  <p>Alice has both. Bob has both. Even Eve has both! But Alice and Bob only ever share their <em>open</em> keys — never the secret ones.</p>
+
+  <!-- ============================================================= -->
+  <h2>The Magic Paint Trick</h2>
+  <p class="lede">Here's the part that sounds impossible at first: Alice and Bob need to agree on a <strong>shared secret color</strong> to lock their message with — but they can only talk through the public bulletin board. How?</p>
+
+  <div class="card">
+    <h3>Step 1 — Everyone starts with the same yellow paint</h3>
+    <div class="row">
+      <span class="blob starting"></span>
+      <span>Everyone in town knows this paint. It's not a secret.</span>
+    </div>
+
+    <h3>Step 2 — Alice and Bob each pick a secret color</h3>
+    <div class="paint-row">
+      <div class="paint-col">
+        <h4>Alice's secret <span class="secret-tag">never shared</span></h4>
+        <span class="blob alice-secret"></span>
+      </div>
+      <div class="paint-col">
+        <h4>Bob's secret <span class="secret-tag">never shared</span></h4>
+        <span class="blob bob-secret"></span>
+      </div>
+    </div>
+
+    <h3>Step 3 — They each mix their secret with the yellow, and post the result on the bulletin board</h3>
+    <div class="paint-row">
+      <div class="paint-col">
+        <h4>Alice posts <span class="public-tag">public</span></h4>
+        <span class="blob starting"></span><span class="plus">+</span><span class="blob alice-secret"></span><span class="arrow">→</span><span class="blob alice-public"></span>
+      </div>
+      <div class="paint-col">
+        <h4>Bob posts <span class="public-tag">public</span></h4>
+        <span class="blob starting"></span><span class="plus">+</span><span class="blob bob-secret"></span><span class="arrow">→</span><span class="blob bob-public"></span>
+      </div>
+    </div>
+    <p>Eve sees the orange and the teal on the board. She does <em>not</em> know Alice's or Bob's secret color.</p>
+
+    <h3>Step 4 — The magic mixing</h3>
+    <p>Now Alice takes Bob's <strong>teal</strong> (from the board) and mixes in <strong>her own secret color</strong>. Bob takes Alice's <strong>orange</strong> (from the board) and mixes in <strong>his own secret color</strong>.</p>
+
+    <div class="paint-row">
+      <div class="paint-col">
+        <h4>Alice mixes</h4>
+        <span class="blob bob-public"></span><span class="plus">+</span><span class="blob alice-secret"></span><span class="arrow">→</span><span class="blob shared"></span>
+      </div>
+      <div class="paint-col">
+        <h4>Bob mixes</h4>
+        <span class="blob alice-public"></span><span class="plus">+</span><span class="blob bob-secret"></span><span class="arrow">→</span><span class="blob shared"></span>
+      </div>
+    </div>
+
+    <p><strong>They both end up with the exact same purple!</strong> That purple is their <strong>shared secret</strong>. And here's the wild part: <em>they never told each other their secret colors</em>. The math just works out so the same purple appears on both sides.</p>
+
+    <p>Eve, watching from outside, only ever saw the yellow, the orange, and the teal on the bulletin board. She does <strong>not</strong> have either secret color, so she <strong>cannot</strong> make the purple. Mixing paint forward is easy. Un-mixing paint backward is basically impossible.</p>
+  </div>
+
+  <p class="lede">In real sen2, the "colors" are huge numbers and the "mixing" is some clever math called <em>elliptic curve Diffie-Hellman</em>. But the idea is exactly the paint trick.</p>
+
+  <!-- ============================================================= -->
+  <h2>Locking the actual message</h2>
+  <div class="card">
+    <div class="step">
+      <div class="step-num">1</div>
+      <div>
+        <p>Alice writes her note: <em>"Meet me at the slide at 3pm!"</em></p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">2</div>
+      <div>
+        <p>She uses the <span style="color:var(--shared);font-weight:700">purple shared secret</span> as the key to a magical lockbox. She drops her note inside and clicks the lid shut.</p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">3</div>
+      <div>
+        <p>She glues a tamper-sticker on the lid. If anyone tries to peek, the sticker tears and Bob will know.</p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">4</div>
+      <div>
+        <p>She writes Bob's name on the outside, and posts the lockbox on the giant public bulletin board.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================= -->
+  <h2>What does the world see?</h2>
+  <p>This is roughly what shows up on the bulletin board (in sen2, the board is the Solana blockchain):</p>
+
+  <div class="ledger">
+    <div><span class="label">from:</span> <span class="pub">Alice's open key (everyone knows this)</span></div>
+    <div><span class="label">to:</span>   <span class="pub">Bob's open key (everyone knows this)</span></div>
+    <div><span class="label">note:</span> <span class="scram">📦 xKZ8wQ4n+2bLpYr9oTjV3mFcGdHvNaSxBuEy7iWkPq1Z…</span></div>
+    <div><span class="label">seal:</span> <span class="scram">🏷️ untampered</span></div>
+  </div>
+
+  <p>Anyone — Eve, the mailman, the whole town — can <strong>see</strong> the lockbox sitting there. They can see who it's from and who it's for. But the inside?</p>
+
+  <div class="compare">
+    <div class="panel alice">
+      <h3>Alice sees</h3>
+      <p>"Meet me at the slide at 3pm!" — she wrote it.</p>
+    </div>
+    <div class="panel bob">
+      <h3>Bob sees</h3>
+      <p>"Meet me at the slide at 3pm!" — he can re-make the purple secret and open the box.</p>
+    </div>
+  </div>
+  <div class="compare">
+    <div class="panel eve" style="grid-column: 1 / -1">
+      <h3>Eve sees</h3>
+      <p>📦 xKZ8wQ4n+2bLpYr9oTjV3mFcGdHvNaSxBuEy7iWkPq1Z… (gibberish — no way to unscramble it without the purple secret)</p>
+    </div>
+  </div>
+
+  <!-- ============================================================= -->
+  <h2>Why only Alice and Bob can read it</h2>
+  <div class="takeaways">
+    <h3>Three reasons:</h3>
+    <ul>
+      <li><strong>Eve doesn't have the purple secret.</strong> To make it, she'd need either Alice's secret color or Bob's — and those never left their owners.</li>
+      <li><strong>Eve can't un-mix the paint.</strong> She sees Alice's orange and Bob's teal on the board, but pulling Alice's red back out of the orange is so hard that even the world's fastest computers can't do it before the sun burns out.</li>
+      <li><strong>Eve can't fake a message either.</strong> The tamper-sticker on the lockbox is also made from the purple secret. If Eve tries to swap the message inside, the sticker won't match and Bob's box will refuse to open.</li>
+    </ul>
+  </div>
+
+  <!-- ============================================================= -->
+  <h2>One important thing to be careful about</h2>
+  <div class="warn">
+    <h3>🔑 Don't lose your secret key — and don't let anyone copy it!</h3>
+    <p>Every message you've ever sent or received is still sitting on the public bulletin board <em>forever</em>. They're locked, so nobody can read them. But they were locked using <em>your</em> secret key.</p>
+    <p>If someone steals your secret key, they could go back and open <strong>every old message</strong> too. So sen2 keeps your secret key inside your computer's special vault (Windows Credential Manager / macOS Keychain) and never sends it anywhere.</p>
+  </div>
+
+  <!-- ============================================================= -->
+  <h2>The whole story in one sentence</h2>
+  <div class="card" style="text-align:center; font-size:1.15rem;">
+    <p style="margin:0">Alice and Bob each have a secret no one else knows. They use clever math to <em>agree</em> on a shared secret without ever telling each other what it is. Then they use that shared secret to lock messages that anyone can see but only they can open.</p>
+  </div>
+
+  <div class="footer">
+    sen2 — agent-to-agent encrypted messaging on Solana
+  </div>
+</div>
+</body>
+</html>

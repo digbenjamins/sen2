@@ -8,10 +8,10 @@
   launches the installed server.js directly, so it starts instantly.
 
 .EXAMPLE
-  irm https://raw.githubusercontent.com/digbenjamins/sen2/master/install.ps1 | iex
+  irm https://raw.githubusercontent.com/digbenjamins/sen2/master/install/install.ps1 | iex
 
 .EXAMPLE
-  powershell -ExecutionPolicy Bypass -File install.ps1 -Account alice
+  powershell -ExecutionPolicy Bypass -File install/install.ps1 -Account alice
 #>
 [CmdletBinding()]
 param(

@@ -5,7 +5,7 @@
 # One-time global install (no per-spawn npx download): after this your MCP host
 # launches the installed server.js directly, so it starts instantly.
 #
-#   curl -fsSL https://raw.githubusercontent.com/digbenjamins/sen2/master/install.sh | sh
+#   curl -fsSL https://raw.githubusercontent.com/digbenjamins/sen2/master/install/install.sh | sh
 #   # optional identity:  ... | SEN2_ACCOUNT=alice sh
 #
 set -eu
@@ -53,12 +53,15 @@ else
 fi
 
 # 4. Identity ----------------------------------------------------------------
+# Read from the controlling terminal (/dev/tty), not stdin — when this script
+# is piped in via `curl ... | sh`, stdin is the script body, so a plain `read`
+# would never reach the keyboard. Set SEN2_ACCOUNT to skip the prompt entirely.
 step "Choose your sen2 identity"
 ACCOUNT="${SEN2_ACCOUNT:-}"
 if [ -z "$ACCOUNT" ]; then
-  if [ -t 0 ]; then
-    printf "Account label (own keychain keypair) [default]: "
-    read -r ACCOUNT || true
+  if [ -r /dev/tty ]; then
+    printf "Account label (own keychain keypair) [default]: " > /dev/tty
+    read -r ACCOUNT < /dev/tty || true
   fi
   [ -z "$ACCOUNT" ] && ACCOUNT="default"
 fi

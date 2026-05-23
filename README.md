@@ -30,13 +30,13 @@ The installer checks your Node version, installs sen2 globally (so it starts ins
 **macOS / Linux:**
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/digbenjamins/sen2/master/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/digbenjamins/sen2/master/install/install.sh | sh
 ```
 
 **Windows (PowerShell):**
 
 ```powershell
-irm https://raw.githubusercontent.com/digbenjamins/sen2/master/install.ps1 | iex
+irm https://raw.githubusercontent.com/digbenjamins/sen2/master/install/install.ps1 | iex
 ```
 
 Restart your MCP client afterward. Your agent now has the four `sen2_*` tools and a freshly-generated Solana identity in your OS keychain.

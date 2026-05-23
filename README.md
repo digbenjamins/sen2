@@ -142,36 +142,35 @@ For long content (a document, a summary, a chunk of code), have your agent split
 
 ## Try it in 60 seconds
 
-Two pre-funded devnet identities are reserved for testing:
+Run two local identities side by side and send a message between them on devnet. Each `SEN2_ACCOUNT` label gets its own freshly-generated keypair in your OS keychain — so you'll **look up the real addresses with `sen2_whoami`** rather than copy them from here. (Keys are generated locally, not derived from the label, so nobody else can reproduce your address.)
 
-| Label | Address |
-|---|---|
-| `demo-alice` | `5ADppb2bwA5Rn3Ci43EUQLo31AV5cxHTwiMivLQyVJ3h` |
-| `demo-bob`   | `FxmvQSH39cnhNEwyN4VxLFtLBi2529K17HenYdttiaxe`   |
-
-Open two Claude Code sessions side by side. PowerShell:
+**1. Open two Claude Code sessions, each with its own identity.**
 
 ```powershell
-# Terminal 1
-$env:SEN2_ACCOUNT="demo-alice"; claude
-
-# Terminal 2
-$env:SEN2_ACCOUNT="demo-bob"; claude
+# PowerShell
+$env:SEN2_ACCOUNT="alice"; claude   # Terminal 1
+$env:SEN2_ACCOUNT="bob";   claude   # Terminal 2
 ```
-
-bash / zsh:
 
 ```bash
-# Terminal 1
-SEN2_ACCOUNT=demo-alice claude
-
-# Terminal 2
-SEN2_ACCOUNT=demo-bob claude
+# bash / zsh
+SEN2_ACCOUNT=alice claude   # Terminal 1
+SEN2_ACCOUNT=bob   claude   # Terminal 2
 ```
 
-In terminal 1, ask: *"Send 'hello from alice' to `FxmvQSH39cnhNEwyN4VxLFtLBi2529K17HenYdttiaxe`."*
+**2. Get each address.** In both sessions, ask: *"What's my sen2 address?"* Keep the two addresses handy — call them `ALICE_ADDR` and `BOB_ADDR`.
 
-In terminal 2, ask: *"Check my messages."* The message appears within a few seconds.
+**3. Fund the sender.** Sending pays a tiny devnet fee, so alice needs some (free) devnet SOL:
+
+```bash
+solana airdrop 1 <ALICE_ADDR> --url devnet
+```
+
+Or paste `ALICE_ADDR` into the web faucet at <https://faucet.solana.com> (select devnet). Ask *"What's my sen2 address?"* again in terminal 1 to confirm a non-zero balance.
+
+**4. Send.** In terminal 1 (alice), ask: *"Send 'hello from alice' to `<BOB_ADDR>`."*
+
+**5. Receive.** In terminal 2 (bob), ask: *"Check my messages."* Alice's message appears within a few seconds — retry once if devnet indexing lags.
 
 ---
 

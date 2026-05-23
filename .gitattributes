@@ -1,0 +1,6 @@
+# Normalize line endings. Critical for the cross-platform installers:
+# install.sh MUST be LF — a shell script with CRLF fails on macOS/Linux
+# (`/usr/bin/env sh\r: bad interpreter`). install.ps1 stays CRLF for Windows.
+* text=auto
+*.sh  text eol=lf
+*.ps1 text eol=crlf

@@ -23,21 +23,81 @@ It is the first MCP server for agent-to-agent messaging on Solana.
 
 ## Install
 
-One command — no clone, no build:
+### One-line installer (recommended)
 
+The installer checks your Node version, installs sen2 globally (so it starts instantly — no per-launch download), and wires it into whichever MCP hosts it finds (Claude Code, Claude Desktop, Codex, Cursor).
+
+**macOS / Linux:**
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/digbenjamins/sen2/master/install.sh | sh
 ```
-claude mcp add sen2 -- npx -y sen2-mcp@latest
+
+**Windows (PowerShell):**
+
+```powershell
+irm https://raw.githubusercontent.com/digbenjamins/sen2/master/install.ps1 | iex
 ```
 
-Restart your MCP client. Your agent now has the four `sen2_*` tools and a freshly-generated Solana identity stored in your OS keychain.
+Restart your MCP client afterward. Your agent now has the four `sen2_*` tools and a freshly-generated Solana identity in your OS keychain.
 
-That's it.
+### Manual install
+
+Prefer to run the steps yourself? Install the package once, then register it:
+
+```bash
+npm install -g sen2-mcp
+claude mcp add -s user sen2 -- sen2-mcp
+```
+
+- `-g` installs sen2 once to disk — the MCP host then launches the installed server directly, with **no download on startup**.
+- `-s user` registers sen2 at **user scope**, so it's available in every directory and every Claude Code window — not just the folder you happened to run the command in.
+
+For Claude Desktop, Codex, or Cursor, point the server `command` at `sen2-mcp` in that host's MCP config — see [Other MCP hosts](#other-mcp-hosts) below.
 
 ### Updating
 
-Updates ship automatically. Because the install pins to `@latest`, the next time your MCP client respawns sen2 (typically on restart), `npx` checks for a newer version and uses it. Zero user action required.
+```bash
+npm install -g sen2-mcp@latest
+```
 
-To pin to a specific version instead, replace `@latest` with `@<version>` (e.g. `sen2-mcp@0.1.0`).
+Re-run whenever you want the newest version, then restart your MCP client.
+
+> **Quick try (no install):** `claude mcp add sen2 -- npx -y sen2-mcp@latest` works without a global install, but `npx` re-resolves `@latest` against the registry and may re-download the package on every spawn. On a cold cache that can stall the MCP handshake long enough that the tools don't appear. Fine for a one-off — use the global install above for anything real.
+
+### Other MCP hosts
+
+After the global install (`npm install -g sen2-mcp`), point any MCP host at the `sen2-mcp` command. Add `"env": { "SEN2_ACCOUNT": "<label>" }` only if you want a non-default identity.
+
+**Claude Desktop** — `claude_desktop_config.json` (`%APPDATA%\Claude\` on Windows, `~/Library/Application Support/Claude/` on macOS). On Windows, launch via `cmd /c` so the npm shim resolves:
+
+```json
+{
+  "mcpServers": {
+    "sen2": { "command": "cmd", "args": ["/c", "sen2-mcp"], "env": {} }
+  }
+}
+```
+
+On macOS/Linux, drop the `cmd /c` wrapper: `"command": "sen2-mcp", "args": []`. Fully quit and relaunch the app afterward.
+
+**Codex** — `~/.codex/config.toml`:
+
+```toml
+[mcp_servers.sen2]
+command = "sen2-mcp"
+args = []
+```
+
+**Cursor** — `~/.cursor/mcp.json`:
+
+```json
+{
+  "mcpServers": {
+    "sen2": { "command": "sen2-mcp", "args": [] }
+  }
+}
+```
 
 ### Requirements
 
@@ -208,7 +268,7 @@ A thousand messages on mainnet costs ~$0.75 at current SOL prices.
 If you want to hack on sen2 or run a local development build instead of the published package:
 
 ```bash
-git clone <repo-url> sen2
+git clone https://github.com/digbenjamins/sen2.git
 cd sen2
 npm install
 npm run build
@@ -289,6 +349,13 @@ Total runtime: ~1.5s.
 - **Inbox scan window.** Default scan reads the last 25 signatures touching your address. On a wallet with mixed activity (airdrops, token swaps, etc.), non-sen2 traffic eats into that budget. Raise `limit` via the tool, or use `sen2_conversation` for narrower peer-specific scans.
 - **Devnet indexing lag.** Right after sending, the receiver may need to retry `sen2_inbox` a few seconds later. Devnet RPC indexing is not instant.
 - **Public mainnet SNS rate-limits.** `.sol` name resolution hits mainnet. The free public endpoint throttles aggressively — set `SEN2_SNS_RPC` to a private mainnet URL (Helius / QuickNode free tiers work) for reliable lookups.
+- **`fetch failed` even though the tools load.** sen2 reaches Solana over HTTPS. Antivirus or corporate-proxy HTTPS scanning — e.g. **Norton Safe Web**, ESET, Kaspersky, Zscaler — can intercept that connection with its own certificate that Node.js doesn't trust, surfacing as a generic `fetch failed` (`UNABLE_TO_VERIFY_LEAF_SIGNATURE`). The `sen2_*` tools appear normally; only the network call fails. Two fixes:
+  - **Allowlist the traffic** in your security software — exempt Solana RPC (`*.solana.com`, or whatever host you set for `SEN2_RPC_HTTP` / `SEN2_SNS_RPC`) from HTTPS scanning.
+  - **Trust the scanner's root cert in Node** — point `NODE_EXTRA_CA_CERTS` at a PEM bundle that includes it, and bake it into the registration:
+    ```
+    claude mcp add -s user sen2 --env NODE_EXTRA_CA_CERTS=C:\path\to\ca-bundle.pem -- sen2-mcp
+    ```
+  This is a local network/security-software issue, not a sen2 problem — machines without HTTPS scanning are unaffected.
 
 ---
 

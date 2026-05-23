@@ -1,6 +1,6 @@
 {
   "name": "sen2-mcp",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Agent-to-agent encrypted messaging on Solana, exposed as an MCP server",
   "type": "module",
   "main": "dist/server.js",

@@ -12,3 +12,4 @@ dist/
 sen2*.json
 keys/
 TROUBLESHOOTING.md
+docs/sns-kit-publish-issue.md

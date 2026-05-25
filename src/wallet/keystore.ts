@@ -1,5 +1,4 @@
 import { Entry } from "@napi-rs/keyring";
-import nacl from "tweetnacl";
 import naclUtil from "tweetnacl-util";
 import { config } from "../config.js";
 
@@ -40,14 +39,9 @@ export function storeSecretKey(account: string, secretKey: Uint8Array): void {
   new Entry(SERVICE, account).setPassword(naclUtil.encodeBase64(secretKey));
 }
 
-export function loadOrGenerate(account: string): AgentKeys {
-  const existing = loadAccount(account);
-  if (existing) return existing;
-
-  const kp = nacl.sign.keyPair();
-  storeSecretKey(account, kp.secretKey);
-  return { account, secretKey: kp.secretKey, publicKey: kp.publicKey };
-}
+// NOTE: there is intentionally no load-or-generate helper. Identity creation
+// lives only in the `sen2` CLI (keygen / import), so the MCP server can never
+// silently mint a key — deleting the keychain entry stays deleted.
 
 export function deleteAccount(account: string): boolean {
   const entry = new Entry(SERVICE, account);

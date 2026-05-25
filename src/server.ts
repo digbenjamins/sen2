@@ -20,13 +20,23 @@ import { isSolName, lookupPrimaryDomains, resolveSol } from "./sns/resolve.js";
 import { getRpc, getRpcSubscriptions } from "./solana/rpc.js";
 import { sendEncryptedMemoTx } from "./solana/send.js";
 import { type InboxMessage, scanInbox } from "./solana/inbox.js";
-import { loadOrGenerate } from "./wallet/keystore.js";
+import { loadAccount } from "./wallet/keystore.js";
 import { toSolanaSigner } from "./wallet/signer.js";
 
-const me = loadOrGenerate(config.account);
+// Read-only: the server never creates an identity. Key lifecycle (create /
+// import / export / delete) lives exclusively in the `sen2` CLI, so deleting
+// the keychain entry stays deleted instead of being silently re-minted on the
+// next restart. If there's no identity, every tool returns NO_IDENTITY_MSG.
+const me = loadAccount(config.account);
 const decoder = getAddressDecoder();
 const encoder = getAddressEncoder();
-const myAddress = decoder.decode(me.publicKey);
+const myAddress = me ? decoder.decode(me.publicKey) : null;
+
+const NO_IDENTITY_MSG =
+  `No sen2 identity for account "${config.account}". ` +
+  `Create one in a terminal:  sen2 keygen` +
+  (config.account === "default" ? "" : ` --account ${config.account}`) +
+  `\n(Key creation only happens in the CLI, never via these tools.)`;
 
 const rpc = getRpc();
 const rpcSubs = getRpcSubscriptions();
@@ -37,6 +47,9 @@ const MIN_SEND_LAMPORTS = 5000n;
 console.error(
   `[sen2 ${config.version}] cluster=${config.cluster} account=${config.account} rpc=${config.rpc.http} sns=${config.rpc.sns}`,
 );
+if (!me) {
+  console.error(`[sen2] no identity for account "${config.account}" — run \`sen2 keygen\` in a terminal. Tools will report this until then.`);
+}
 if (config.cluster === "mainnet-beta") {
   console.error(
     "[sen2] ⚠ MAINNET active — sends spend REAL SOL and are permanent and publicly visible. " +
@@ -77,6 +90,7 @@ server.registerTool(
     inputSchema: {},
   },
   async () => {
+    if (!me || !myAddress) return errText(NO_IDENTITY_MSG);
     const { value: lamports } = await rpc.getBalance(myAddress).send();
     const sol = Number(lamports) / 1e9;
     const text = [`address: ${myAddress}`, `account: ${config.account}`, `cluster: ${config.cluster}`, `rpc: ${config.rpc.http}`, `balance: ${sol.toFixed(6)} SOL (${lamports} lamports)`].join("\n");
@@ -123,6 +137,7 @@ server.registerTool(
     },
   },
   async ({ recipient, message }) => {
+    if (!me || !myAddress) return errText(NO_IDENTITY_MSG);
     let recipientAddr: Address;
     let resolvedFromName: string | null = null;
 
@@ -221,6 +236,7 @@ server.registerTool(
     },
   },
   async ({ limit }) => {
+    if (!me || !myAddress) return errText(NO_IDENTITY_MSG);
     const messages = await scanInbox(rpc, myAddress, me.secretKey, me.publicKey, {
       limit: limit ?? config.inbox.defaultLimit,
     });
@@ -270,6 +286,7 @@ server.registerTool(
     },
   },
   async ({ peer, limit }) => {
+    if (!me || !myAddress) return errText(NO_IDENTITY_MSG);
     let peerAddr: Address;
     if (isSolName(peer)) {
       const resolved = await resolveSol(peer);

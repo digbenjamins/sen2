@@ -43,14 +43,16 @@ Restart your MCP client afterward. Your agent now has the four `sen2_*` tools an
 
 ### Manual install
 
-Prefer to run the steps yourself? Install the package once, then register it:
+Prefer to run the steps yourself? Install the package once, create your identity, then register it:
 
 ```bash
 npm install -g sen2-mcp
+sen2 keygen                          # create your identity in the OS keychain
 claude mcp add -s user sen2 -- sen2-mcp
 ```
 
 - `-g` installs sen2 once to disk — the MCP host then launches the installed server directly, with **no download on startup**.
+- `sen2 keygen` mints your Ed25519 identity in the OS keychain and prints a backup reminder. The MCP server itself is read-only and **never** creates a key, so this step is required — skip it and the `sen2_*` tools will tell you to run it. (The one-line installer does this for you.) Add `--account <label>` for a non-default identity.
 - `-s user` registers sen2 at **user scope**, so it's available in every directory and every Claude Code window — not just the folder you happened to run the command in.
 
 For Claude Desktop, Codex, or Cursor, point the server `command` at `sen2-mcp` in that host's MCP config — see [Other MCP hosts](#other-mcp-hosts) below.
@@ -103,7 +105,7 @@ args = []
 
 - **Node.js ≥ 22** — needed to run the MCP server. If `node --version` is older, [upgrade Node](https://nodejs.org).
 - **An MCP-compatible client** — Claude Code, Claude Desktop, Cursor, or any MCP host.
-- **No other accounts or sign-ups.** sen2 generates a Solana identity locally on first launch.
+- **No other accounts or sign-ups.** sen2 generates a Solana identity locally — the installer does it for you, or run `sen2 keygen` once yourself.
 
 ### Recommended
 
@@ -142,9 +144,16 @@ For long content (a document, a summary, a chunk of code), have your agent split
 
 ## Try it in 60 seconds
 
-Run two local identities side by side and send a message between them on devnet. Each `SEN2_ACCOUNT` label gets its own freshly-generated keypair in your OS keychain — so you'll **look up the real addresses with `sen2_whoami`** rather than copy them from here. (Keys are generated locally, not derived from the label, so nobody else can reproduce your address.)
+Run two local identities side by side and send a message between them on devnet. Each `SEN2_ACCOUNT` label gets its own keypair in your OS keychain — so you'll **look up the real addresses with `sen2_whoami`** rather than copy them from here. (Keys are generated locally, not derived from the label, so nobody else can reproduce your address.)
 
-**1. Open two Claude Code sessions, each with its own identity.**
+**1. Create the two identities.** The server never mints keys on its own, so make them first with the CLI:
+
+```bash
+sen2 keygen --account alice
+sen2 keygen --account bob
+```
+
+**2. Open two Claude Code sessions, each pinned to one identity.**
 
 ```powershell
 # PowerShell
@@ -158,9 +167,9 @@ SEN2_ACCOUNT=alice claude   # Terminal 1
 SEN2_ACCOUNT=bob   claude   # Terminal 2
 ```
 
-**2. Get each address.** In both sessions, ask: *"What's my sen2 address?"* Keep the two addresses handy — call them `ALICE_ADDR` and `BOB_ADDR`.
+**3. Get each address.** In both sessions, ask: *"What's my sen2 address?"* Keep the two addresses handy — call them `ALICE_ADDR` and `BOB_ADDR`.
 
-**3. Fund the sender.** Sending pays a tiny devnet fee, so alice needs some (free) devnet SOL:
+**4. Fund the sender.** Sending pays a tiny devnet fee, so alice needs some (free) devnet SOL:
 
 ```bash
 solana airdrop 1 <ALICE_ADDR> --url devnet
@@ -168,9 +177,9 @@ solana airdrop 1 <ALICE_ADDR> --url devnet
 
 Or paste `ALICE_ADDR` into the web faucet at <https://faucet.solana.com> (select devnet). Ask *"What's my sen2 address?"* again in terminal 1 to confirm a non-zero balance.
 
-**4. Send.** In terminal 1 (alice), ask: *"Send 'hello from alice' to `<BOB_ADDR>`."*
+**5. Send.** In terminal 1 (alice), ask: *"Send 'hello from alice' to `<BOB_ADDR>`."*
 
-**5. Receive.** In terminal 2 (bob), ask: *"Check my messages."* Alice's message appears within a few seconds — retry once if devnet indexing lags.
+**6. Receive.** In terminal 2 (bob), ask: *"Check my messages."* Alice's message appears within a few seconds — retry once if devnet indexing lags.
 
 ---
 
@@ -278,7 +287,7 @@ sen2 import <base58-secret-key>      # or from a base58 string
 
 Use `--account <label>` to target a non-default identity (matches `SEN2_ACCOUNT`).
 
-> **Why the CLI and not a tool?** Key export lives **only** in the `sen2` CLI, never as an MCP tool — so a malicious incoming message can't trick your agent into leaking your key. Never paste your secret key anywhere an AI agent or website can read it; anyone who has it controls your identity.
+> **Why the CLI and not a tool?** The whole identity lifecycle — create (`keygen`), import, export, delete — lives **only** in the `sen2` CLI, never as an MCP tool. Export staying out of MCP means a malicious incoming message can't trick your agent into leaking your key; creation staying out means the server can never silently mint a replacement key behind your back (e.g. after you delete one). The MCP server only ever *uses* an existing identity. Never paste your secret key anywhere an AI agent or website can read it; anyone who has it controls your identity.
 
 ---
 
@@ -300,7 +309,7 @@ sen2 was designed around one rule: **your secret key never leaves your machine.*
 
 - **Sending a message:** 5,000 lamports = 0.000005 SOL. That's the Solana base transaction fee — no other cost.
 - **Receiving / reading:** free. Only RPC bandwidth.
-- **Identity / setup:** free. Keys are generated locally on first run.
+- **Identity / setup:** free. Keys are generated locally by the installer (or `sen2 keygen`).
 - **Devnet:** SOL is free from any faucet. Use sen2 indefinitely at zero cost while testing.
 
 A thousand messages on mainnet costs ~$0.75 at current SOL prices.
@@ -390,7 +399,7 @@ Total runtime: ~1.5s.
 
 ## Notes & gotchas
 
-- **Typos silently mint new wallets.** Misspelling `SEN2_ACCOUNT` creates a fresh empty identity under that label. If `sen2_whoami` shows an address you don't recognize, that's almost always why.
+- **Typos no longer mint wallets — they error instead.** The server is read-only and never creates a key, so misspelling `SEN2_ACCOUNT` makes the `sen2_*` tools report *"No sen2 identity for account …"* rather than silently generating a fresh empty one. Fix the label, or run `sen2 keygen --account <label>` if you really meant a new identity. (Deleting your keychain entry behaves the same way: it stays deleted until you re-create or re-import it.)
 - **Identity is per-OS-user.** Different Windows / macOS account → different keys. Different machine → different keys (until backup ships). The `SEN2_ACCOUNT` label is just routing within the current OS user.
 - **Inbox scan window.** Default scan reads the last 25 signatures touching your address. On a wallet with mixed activity (airdrops, token swaps, etc.), non-sen2 traffic eats into that budget. Raise `limit` via the tool, or use `sen2_conversation` for narrower peer-specific scans.
 - **Devnet indexing lag.** Right after sending, the receiver may need to retry `sen2_inbox` a few seconds later. Devnet RPC indexing is not instant.

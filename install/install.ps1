@@ -119,6 +119,28 @@ if (Get-Command sen2 -ErrorAction SilentlyContinue) {
 }
 if ($Cluster -eq 'mainnet') { Warn "Mainnet uses real SOL - fund your address before sending." }
 
+# 4c. Create identity --------------------------------------------------------
+# The MCP server is read-only and never mints a key, so we create one here.
+# Idempotent: check for an existing identity first and keep it. Plain `keygen`
+# (no --force) also refuses to overwrite, but checking avoids a scary error.
+Step "Creating your sen2 identity"
+if (Get-Command sen2 -ErrorAction SilentlyContinue) {
+  $eap = $ErrorActionPreference; $ErrorActionPreference = 'SilentlyContinue'
+  & sen2 whoami --account $Account 2>&1 | Out-Null
+  $hasIdentity = ($LASTEXITCODE -eq 0)
+  if ($hasIdentity) {
+    Ok "Identity already exists for '$Account' - keeping it."
+  } else {
+    # keygen prints the address to stdout and the backup warning to stderr.
+    & sen2 keygen --account $Account
+    if ($LASTEXITCODE -eq 0) { Ok "Created identity for '$Account'. Back it up:  sen2 export --account $Account --out $Account.json" }
+    else { Warn "Couldn't create the identity. Run it yourself:  sen2 keygen --account $Account" }
+  }
+  $ErrorActionPreference = $eap
+} else {
+  Warn "Create your identity once 'sen2' is on PATH:  sen2 keygen --account $Account"
+}
+
 # 5. Set up AI tools ---------------------------------------------------------
 Step "Setting up your AI tools"
 

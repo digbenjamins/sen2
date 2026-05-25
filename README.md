@@ -204,7 +204,7 @@ All configuration is via environment variables. No `.env` file is read — sen2 
 | `SEN2_RPC_WSS` | Override the WebSocket RPC endpoint. | Solana public endpoint matching `SEN2_CLUSTER` |
 | `SEN2_SNS_RPC` | RPC endpoint used for `.sol` name resolution. Always mainnet-beta, regardless of `SEN2_CLUSTER`. **Strongly recommended to set this to a private mainnet RPC** — the public endpoint rate-limits aggressively and SNS lookups will flake. | `https://api.mainnet-beta.solana.com` |
 
-All variables are optional. Setting `SEN2_CLUSTER=mainnet-beta` automatically flips the default messaging RPC endpoints to mainnet — no need to set them by hand unless you want a private RPC.
+All variables are optional. Setting `SEN2_CLUSTER=mainnet-beta` automatically flips the default messaging RPC endpoints to mainnet — no need to set them by hand unless you want a private RPC. Don't want to manage an env var? Switch the network from the CLI instead — see [Switching network](#switching-network) below.
 
 **Setting per client:**
 
@@ -219,6 +219,30 @@ SEN2_ACCOUNT=alice SEN2_CLUSTER=devnet claude
 ```
 
 Note: MCP clients capture environment variables at the moment they spawn the server. Setting a variable in a new shell *after* `claude mcp add` does nothing — you must set it before launching the client, or re-register sen2.
+
+### Switching network
+
+Instead of setting `SEN2_CLUSTER`, you can persist the cluster choice with the `sen2` CLI:
+
+```bash
+sen2 cluster            # print the active cluster
+sen2 cluster mainnet    # switch to mainnet-beta
+sen2 cluster devnet     # switch back to devnet
+```
+
+This writes a small settings file in your OS config dir (`%APPDATA%\sen2\settings.json` on Windows, `~/.config/sen2/settings.json` on Linux, `~/Library/Application Support/sen2/settings.json` on macOS) that survives restarts. Precedence is **`SEN2_CLUSTER` env var → `sen2 cluster` setting → devnet**, so an explicit env var always wins. Restart your MCP client after switching so the server picks up the new cluster. Switching to mainnet prints a reminder that sends then cost real SOL.
+
+To point a cluster at your own RPC (e.g. a Helius/QuickNode endpoint), use `sen2 rpc`:
+
+```bash
+sen2 rpc                                    # show the active cluster's endpoints
+sen2 rpc https://my-rpc.example/...         # set the messaging RPC for the active cluster
+sen2 rpc https://... --wss wss://...        # also set the websocket endpoint
+sen2 rpc --sns https://my-mainnet-rpc/...   # set the .sol resolution RPC (always mainnet)
+sen2 rpc --clear                            # revert the active cluster to the public default
+```
+
+RPC overrides are saved **per cluster**, so a custom mainnet endpoint is never used while you're on devnet. `SEN2_RPC_HTTP` / `SEN2_RPC_WSS` / `SEN2_SNS_RPC` env vars still take precedence over saved values. The config dir can be relocated with the `SEN2_CONFIG_DIR` env var.
 
 ---
 
@@ -240,7 +264,7 @@ Each tool ships with a detailed description tuned for LLM routing — so phrases
 Your sen2 identity is an Ed25519 keypair in your OS keychain. **It is the only thing that controls your address (and any funds on it), and your encrypted history can only be read with it.** If the keychain is wiped and you have no backup, the identity is gone for good. Back it up with the `sen2` CLI, installed alongside the server:
 
 ```bash
-sen2 whoami                          # show your address / account / cluster
+sen2 whoami                          # show your address / account / cluster / rpc
 sen2 export --out my-sen2-key.json   # save the secret key (Solana CLI id.json format)
 sen2 export --format base58          # or print base58 (Phantom/Solflare "import private key")
 ```

@@ -34,7 +34,7 @@
     "start": "node dist/server.js",
     "dev": "tsc && node dist/server.js",
     "inspect": "tsc && npx @modelcontextprotocol/inspector node dist/server.js",
-    "test": "tsc && node --test dist/crypto/envelope.test.js dist/sns/resolve.test.js",
+    "test": "tsc && node --test dist/crypto/envelope.test.js dist/sns/resolve.test.js dist/config-resolve.test.js dist/settings.test.js",
     "prepublishOnly": "npm run build"
   },
   "dependencies": {

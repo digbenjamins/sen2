@@ -71,7 +71,7 @@ server.registerTool(
       "'what's my agent ID?', 'what's my sen2 address?', or wants to share their " +
       "address so another agent can message them. " +
       "Returns: Solana address (base58, 32-byte Ed25519 public key), keychain account " +
-      "label, cluster, and current SOL balance. " +
+      "label, cluster, RPC endpoint, and current SOL balance. " +
       "A 0-SOL balance means sen2_send will fail until the wallet is funded; surface " +
       "the funding hint if the balance is zero.",
     inputSchema: {},
@@ -79,7 +79,7 @@ server.registerTool(
   async () => {
     const { value: lamports } = await rpc.getBalance(myAddress).send();
     const sol = Number(lamports) / 1e9;
-    const text = [`address: ${myAddress}`, `account: ${config.account}`, `cluster: ${config.cluster}`, `balance: ${sol.toFixed(6)} SOL (${lamports} lamports)`].join("\n");
+    const text = [`address: ${myAddress}`, `account: ${config.account}`, `cluster: ${config.cluster}`, `rpc: ${config.rpc.http}`, `balance: ${sol.toFixed(6)} SOL (${lamports} lamports)`].join("\n");
     return { content: [{ type: "text", text }] };
   },
 );

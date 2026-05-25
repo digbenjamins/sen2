@@ -11,6 +11,7 @@ import { getAddressDecoder, getBase58Decoder, getBase58Encoder } from "@solana/k
 import nacl from "tweetnacl";
 
 import { config } from "../config.js";
+import { readSettings, writeSettings, settingsPath, type Cluster } from "../settings.js";
 import { accountExists, loadAccount, storeSecretKey } from "../wallet/keystore.js";
 
 const addressDecoder = getAddressDecoder();
@@ -24,6 +25,14 @@ function fail(message: string): never {
   process.exit(1);
 }
 
+function assertUrl(url: string): void {
+  try {
+    new URL(url);
+  } catch {
+    fail(`Not a valid URL: "${url}".`);
+  }
+}
+
 const USAGE = `sen2 — key management for your sen2 agent identity.
 
 Usage:
@@ -31,6 +40,8 @@ Usage:
   sen2 keygen [--account <label>] [--force]
   sen2 export [--account <label>] [--format id-json|base58] [--out <file>]
   sen2 import <id.json | base58 | file> [--account <label>] [--force]
+  sen2 cluster [devnet | mainnet]
+  sen2 rpc [<http-url>] [--wss <url>] [--sns <url>] [--clear]
 
 Identity lives in your OS keychain (service "sen2"). Default account label is
 "${config.account}" (override with --account or the SEN2_ACCOUNT env var).
@@ -49,6 +60,9 @@ const { values, positionals } = parseArgs({
     account: { type: "string" },
     format: { type: "string" },
     out: { type: "string" },
+    wss: { type: "string" },
+    sns: { type: "string" },
+    clear: { type: "boolean", default: false },
     force: { type: "boolean", default: false },
     help: { type: "boolean", short: "h", default: false },
   },
@@ -99,6 +113,7 @@ switch (cmd) {
     console.log(`address: ${addressOf(keys.publicKey)}`);
     console.log(`account: ${account}`);
     console.log(`cluster: ${config.cluster}`);
+    console.log(`rpc: ${config.rpc.http}`);
     break;
   }
 
@@ -150,6 +165,88 @@ switch (cmd) {
     storeSecretKey(account, secretKey);
     console.log(`Imported key into account "${account}".`);
     console.log(`address: ${addressOf(secretKey.slice(32, 64))}`);
+    break;
+  }
+
+  case "cluster": {
+    const arg = positionals[1];
+    if (!arg) {
+      console.log(`cluster: ${config.cluster}`);
+      if (process.env.SEN2_CLUSTER) {
+        console.error("(forced by the SEN2_CLUSTER env var — clear it to use the 'sen2 cluster' setting)");
+      }
+      break;
+    }
+
+    const target: Cluster =
+      arg === "mainnet" || arg === "mainnet-beta" ? "mainnet-beta"
+      : arg === "devnet" ? "devnet"
+      : fail(`Unknown cluster "${arg}". Use 'devnet' or 'mainnet'.`);
+
+    writeSettings({ ...readSettings(), cluster: target });
+    console.log(`Switched sen2 to ${target}. Saved to ${settingsPath()}.`);
+
+    if (target === "mainnet-beta") {
+      console.error(
+        "\n⚠ Mainnet uses REAL SOL. Sends cost a small network fee and your identity must be funded.\n" +
+          "Back up your key first if you haven't:  sen2 export --out backup.json",
+      );
+    }
+    if (process.env.SEN2_CLUSTER) {
+      console.error(
+        `\nNote: SEN2_CLUSTER=${process.env.SEN2_CLUSTER} is set in your environment and OVERRIDES this setting.\n` +
+          "Remove it (or update your MCP registration) for the switch to take effect.",
+      );
+    }
+    console.error("\nRestart Claude Code (or your MCP client) for the new cluster to take effect.");
+    break;
+  }
+
+  case "rpc": {
+    const active = config.cluster;
+    const next = readSettings();
+    const setHttp = positionals[1];
+    const setWss = typeof values.wss === "string" ? values.wss : undefined;
+    const setSns = typeof values.sns === "string" ? values.sns : undefined;
+
+    if (values.clear) {
+      if (next.rpc) delete next.rpc[active];
+      writeSettings(next);
+      console.log(`Cleared the custom messaging RPC for ${active} — reverting to the public default.`);
+      console.error("(Use --sns with a url to change SNS resolution; --clear only resets the messaging RPC.)");
+      console.error("\nRestart Claude Code (or your MCP client) to apply.");
+      break;
+    }
+
+    // No args → show the effective endpoints for the active cluster.
+    if (!setHttp && setWss === undefined && setSns === undefined) {
+      console.log(`cluster:  ${active}`);
+      console.log(`rpc http: ${config.rpc.http}`);
+      console.log(`rpc wss:  ${config.rpc.wss}`);
+      console.log(`sns rpc:  ${config.rpc.sns}`);
+      break;
+    }
+
+    for (const u of [setHttp, setWss, setSns]) if (u) assertUrl(u);
+
+    if (setHttp || setWss !== undefined) {
+      next.rpc ??= {};
+      next.rpc[active] = { ...(next.rpc[active] ?? {}) };
+      if (setHttp) next.rpc[active]!.http = setHttp;
+      if (setWss !== undefined) next.rpc[active]!.wss = setWss;
+    }
+    if (setSns !== undefined) next.snsRpc = setSns;
+
+    writeSettings(next);
+
+    if (setHttp) console.log(`Set ${active} messaging RPC (http) to ${setHttp}.`);
+    if (setWss !== undefined) console.log(`Set ${active} messaging RPC (wss) to ${setWss}.`);
+    if (setSns !== undefined) console.log(`Set SNS resolution RPC to ${setSns}.`);
+
+    if (process.env.SEN2_RPC_HTTP || process.env.SEN2_RPC_WSS || process.env.SEN2_SNS_RPC) {
+      console.error("\nNote: a SEN2_RPC_* env var is set and OVERRIDES the value(s) you just saved.");
+    }
+    console.error("\nRestart Claude Code (or your MCP client) for the new RPC to take effect.");
     break;
   }
 

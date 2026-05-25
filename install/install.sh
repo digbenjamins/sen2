@@ -13,19 +13,39 @@ set -eu
 PKG="sen2-mcp"
 MIN_NODE=22
 
-# colors (skip if not a tty)
+# colors + box helpers (skip styling if not a tty). Brand palette = mint/violet.
 if [ -t 1 ]; then
-  C_M='\033[35m'; C_C='\033[36m'; C_G='\033[32m'; C_Y='\033[33m'; C_R='\033[31m'; C_0='\033[0m'
+  ESC=$(printf '\033')
+  MINT="${ESC}[38;2;45;245;166m"
+  VIOLET="${ESC}[38;2;164;114;255m"
+  AMBER="${ESC}[38;2;230;180;78m"
+  DIM="${ESC}[38;2;146;152;166m"
+  RED="${ESC}[31m"
+  BOLD="${ESC}[1m"
+  C_0="${ESC}[0m"
 else
-  C_M=''; C_C=''; C_G=''; C_Y=''; C_R=''; C_0=''
+  MINT=''; VIOLET=''; AMBER=''; DIM=''; RED=''; BOLD=''; C_0=''
 fi
-step() { printf "\n${C_C}==> %s${C_0}\n" "$1"; }
-ok()   { printf "  ${C_G}[ok]${C_0} %s\n" "$1"; }
-warn() { printf "  ${C_Y}[!]${C_0}  %s\n" "$1"; }
-die()  { printf "  ${C_R}[x]${C_0}  %s\n" "$1"; exit 1; }
+C_C="$VIOLET"; C_G="$MINT"; C_Y="$AMBER"; C_R="$RED"
 
-printf "\n${C_M}  sen2 — agent-to-agent encrypted messaging on Solana${C_0}\n"
-printf "${C_M}  ----------------------------------------------------${C_0}\n"
+step() { printf "\n${VIOLET}==>${C_0} ${BOLD}%s${C_0}\n" "$1"; }
+ok()   { printf "  ${MINT}✓${C_0} %s\n" "$1"; }
+warn() { printf "  ${AMBER}!${C_0} %s\n" "$1"; }
+die()  { printf "  ${RED}✗${C_0} %s\n" "$1"; exit 1; }
+
+# Fixed-width boxes (BOX_W = inner content width). Color codes are zero-width,
+# so lines with embedded color must be pre-padded by hand; box_line pads plain text.
+BOX_W=56
+rule() { _n="$1"; _s=""; while [ "$_n" -gt 0 ]; do _s="${_s}─"; _n=$((_n - 1)); done; printf "%s" "$_s"; }
+box_top() { printf "  ${VIOLET}╭%s╮${C_0}\n" "$(rule $((BOX_W + 2)))"; }
+box_bot() { printf "  ${VIOLET}╰%s╯${C_0}\n" "$(rule $((BOX_W + 2)))"; }
+box_line() { _len=${#1}; _pad=$((BOX_W - _len)); [ "$_pad" -lt 0 ] && _pad=0; printf "  ${VIOLET}│${C_0} %s%*s ${VIOLET}│${C_0}\n" "$1" "$_pad" ""; }
+
+printf "\n"
+box_top
+printf "  ${VIOLET}│${C_0} %s%*s ${VIOLET}│${C_0}\n" "${BOLD}${MINT}sen2${C_0}" 52 ""
+printf "  ${VIOLET}│${C_0} %s%*s ${VIOLET}│${C_0}\n" "${DIM}agent-to-agent encrypted messaging on Solana${C_0}" 12 ""
+box_bot
 
 # 1. Preflight ---------------------------------------------------------------
 step "Checking prerequisites"
@@ -66,6 +86,43 @@ if [ -z "$ACCOUNT" ]; then
   [ -z "$ACCOUNT" ] && ACCOUNT="default"
 fi
 ok "Using account: ${ACCOUNT}"
+
+# 4b. Network (cluster) ------------------------------------------------------
+# Default devnet (free, for testing). Pick 2 for mainnet (real SOL). Set
+# SEN2_CLUSTER=mainnet (or devnet) to skip the prompt for unattended installs.
+step "Choose your network"
+CLUSTER="${SEN2_CLUSTER:-}"
+case "$CLUSTER" in
+  mainnet|mainnet-beta) CLUSTER="mainnet" ;;
+  devnet)               CLUSTER="devnet" ;;
+  "")
+    CH=""
+    if [ -r /dev/tty ]; then
+      {
+        box_top
+        printf "  ${VIOLET}│${C_0} %s%*s ${VIOLET}│${C_0}\n" "${MINT}❯ 1${C_0}  devnet   free test network ${DIM}(default)${C_0}" 15 ""
+        printf "  ${VIOLET}│${C_0} %s%*s ${VIOLET}│${C_0}\n" "${AMBER}  2${C_0}  mainnet  real SOL, real network fees" 15 ""
+        box_bot
+        printf "  ${DIM}Select${C_0} ${BOLD}[1]${C_0} ${DIM}or${C_0} ${BOLD}2${C_0}: "
+      } > /dev/tty
+      read -r CH < /dev/tty || true
+    fi
+    case "$CH" in
+      2|mainnet|mainnet-beta) CLUSTER="mainnet" ;;
+      *)                      CLUSTER="devnet" ;;
+    esac
+    ;;
+  *) warn "Unknown SEN2_CLUSTER='${CLUSTER}'; using devnet."; CLUSTER="devnet" ;;
+esac
+
+if command -v sen2 >/dev/null 2>&1; then
+  sen2 cluster "$CLUSTER" >/dev/null 2>&1 \
+    && ok "Network: ${CLUSTER}" \
+    || warn "Couldn't save the network. Set it later:  sen2 cluster ${CLUSTER}"
+else
+  warn "Network: ${CLUSTER} — run 'sen2 cluster ${CLUSTER}' once 'sen2' is on PATH."
+fi
+[ "$CLUSTER" = "mainnet" ] && warn "Mainnet uses real SOL — fund your address before sending."
 
 USE_ENV=0
 [ "$ACCOUNT" != "default" ] && USE_ENV=1

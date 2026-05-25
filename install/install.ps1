@@ -1,4 +1,4 @@
-﻿<#
+<#
 .SYNOPSIS
   sen2 installer for Windows - installs the sen2-mcp server globally and wires it
   into your AI tools (Claude Code, Claude Desktop, Codex, Cursor).
@@ -11,20 +11,18 @@
   irm https://raw.githubusercontent.com/digbenjamins/sen2/master/install/install.ps1 | iex
 
 .EXAMPLE
-  powershell -ExecutionPolicy Bypass -File install/install.ps1 -Account alice
+  $env:SEN2_ACCOUNT = "alice"; $env:SEN2_CLUSTER = "mainnet"; irm https://raw.githubusercontent.com/digbenjamins/sen2/master/install/install.ps1 | iex
 #>
-[CmdletBinding()]
-param(
-  [string]$Account = "",  # sen2 identity / keychain label. Empty => prompt (default: "default")
-  [string]$Cluster = ""   # devnet | mainnet. Empty => prompt (default: devnet). Or set $env:SEN2_CLUSTER.
-)
-
 $ErrorActionPreference = 'Stop'
 $PKG = 'sen2-mcp'
 $MIN_NODE = 22
 
-# UTF-8 so the box-drawing characters render in the console.
-try { [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new() } catch {}
+# No param()/[CmdletBinding()] on purpose: this script is meant to be run via
+# `irm ... | iex`, which rejects a top-level param block. Customize with env vars:
+#   $env:SEN2_ACCOUNT = "alice"     (keychain identity; default "default")
+#   $env:SEN2_CLUSTER = "mainnet"   (devnet | mainnet; default prompts, then devnet)
+$Account = if ($env:SEN2_ACCOUNT) { $env:SEN2_ACCOUNT } else { "" }
+$Cluster = if ($env:SEN2_CLUSTER) { $env:SEN2_CLUSTER } else { "" }
 
 function Say   ($m){ Write-Host $m }
 function Step  ($m){ Write-Host ""; Write-Host "==> " -ForegroundColor Magenta -NoNewline; Write-Host $m }
@@ -32,15 +30,17 @@ function Ok    ($m){ Write-Host "  " -NoNewline; Write-Host "OK" -ForegroundColo
 function Warn  ($m){ Write-Host "  " -NoNewline; Write-Host "!"  -ForegroundColor Yellow -NoNewline; Write-Host "  $m" }
 function Die   ($m){ Write-Host "  " -NoNewline; Write-Host "x"  -ForegroundColor Red    -NoNewline; Write-Host "  $m"; exit 1 }
 
-# Fixed-width boxes. Magenta border (≈violet), Green text (≈mint).
+# Fixed-width ASCII boxes. Kept ASCII on purpose so the script is encoding-agnostic:
+# no BOM needed, and it renders identically via `irm | iex` and `-File` on any
+# PowerShell edition. Magenta border, colored text.
 $BOXW = 56
-function Rule  ([int]$n){ '─' * $n }
-function BoxTop(){ Write-Host ("  ╭" + (Rule ($BOXW + 2)) + "╮") -ForegroundColor Magenta }
-function BoxBot(){ Write-Host ("  ╰" + (Rule ($BOXW + 2)) + "╯") -ForegroundColor Magenta }
+function Rule  ([int]$n){ '-' * $n }
+function BoxTop(){ Write-Host ("  +" + (Rule ($BOXW + 2)) + "+") -ForegroundColor Magenta }
+function BoxBot(){ Write-Host ("  +" + (Rule ($BOXW + 2)) + "+") -ForegroundColor Magenta }
 function BoxLine([string]$text, [string]$color = 'Gray'){
-  Write-Host "  │ " -ForegroundColor Magenta -NoNewline
+  Write-Host "  | " -ForegroundColor Magenta -NoNewline
   Write-Host $text.PadRight($BOXW) -ForegroundColor $color -NoNewline
-  Write-Host " │" -ForegroundColor Magenta
+  Write-Host " |" -ForegroundColor Magenta
 }
 
 Write-Host ""
@@ -88,8 +88,8 @@ Ok "Using account: $Account"
 $useEnv = ($Account -ne 'default')
 
 # 4b. Network (cluster) ------------------------------------------------------
-# Default devnet (free, for testing). Pick 2 for mainnet (real SOL). Pass
-# -Cluster or set $env:SEN2_CLUSTER to skip the prompt for unattended installs.
+# Default devnet (free, for testing). Pick 2 for mainnet (real SOL). Set
+# $env:SEN2_CLUSTER before running to skip the prompt for unattended installs.
 Step "Choose your network"
 if ([string]::IsNullOrWhiteSpace($Cluster)) { $Cluster = $env:SEN2_CLUSTER }
 if ([string]::IsNullOrWhiteSpace($Cluster)) {
@@ -106,8 +106,13 @@ switch -Regex ($Cluster) {
   default { Warn "Unknown cluster '$Cluster'; using devnet."; $Cluster = 'devnet' }
 }
 if (Get-Command sen2 -ErrorAction SilentlyContinue) {
-  & sen2 cluster $Cluster *> $null
-  if ($LASTEXITCODE -eq 0) { Ok "Network: $Cluster" }
+  # sen2 prints its mainnet notice to stderr; PowerShell 5.1 turns native stderr
+  # into a terminating error under -EA Stop, so relax it just for this call.
+  $eap = $ErrorActionPreference; $ErrorActionPreference = 'SilentlyContinue'
+  & sen2 cluster $Cluster 2>&1 | Out-Null
+  $clusterOk = ($LASTEXITCODE -eq 0)
+  $ErrorActionPreference = $eap
+  if ($clusterOk) { Ok "Network: $Cluster" }
   else { Warn "Couldn't save the network. Set it later:  sen2 cluster $Cluster" }
 } else {
   Warn "Network: $Cluster - run 'sen2 cluster $Cluster' once 'sen2' is on PATH."
@@ -119,13 +124,17 @@ Step "Setting up your AI tools"
 
 # Claude Code: register automatically at user scope.
 if (Get-Command claude -ErrorAction SilentlyContinue) {
-  try { & claude mcp remove sen2 -s user 2>$null | Out-Null } catch {}
+  # Same stderr-under-EA-Stop guard as above for the native `claude` calls.
+  $eap = $ErrorActionPreference; $ErrorActionPreference = 'SilentlyContinue'
+  & claude mcp remove sen2 -s user 2>&1 | Out-Null
   if ($useEnv) {
-    & claude mcp add -s user sen2 --env "SEN2_ACCOUNT=$Account" -- sen2-mcp | Out-Null
+    & claude mcp add -s user sen2 --env "SEN2_ACCOUNT=$Account" -- sen2-mcp 2>&1 | Out-Null
   } else {
-    & claude mcp add -s user sen2 -- sen2-mcp | Out-Null
+    & claude mcp add -s user sen2 -- sen2-mcp 2>&1 | Out-Null
   }
-  if ($LASTEXITCODE -eq 0) { Ok "Claude Code: added at user level. Restart Claude Code to load it." }
+  $claudeOk = ($LASTEXITCODE -eq 0)
+  $ErrorActionPreference = $eap
+  if ($claudeOk) { Ok "Claude Code: added at user level. Restart Claude Code to load it." }
   else { Warn "Claude Code: add failed. Run:  claude mcp add -s user sen2 -- sen2-mcp" }
 }
 

@@ -11,7 +11,9 @@ export interface AgentKeys {
   secretKey: Uint8Array;
 }
 
-export function loadOrGenerate(account: string): AgentKeys {
+// Read an identity from the keychain without creating one. Returns null if the
+// account has never been initialized.
+export function loadAccount(account: string): AgentKeys | null {
   const entry = new Entry(SERVICE, account);
   let stored: string | null = null;
   try {
@@ -19,19 +21,31 @@ export function loadOrGenerate(account: string): AgentKeys {
   } catch {
     // not found
   }
+  if (!stored) return null;
 
-  if (stored) {
-    const secretKey = naclUtil.decodeBase64(stored);
-    return {
-      account,
-      secretKey,
-      publicKey: secretKey.slice(32, 64),
-    };
+  const secretKey = naclUtil.decodeBase64(stored);
+  return { account, secretKey, publicKey: secretKey.slice(32, 64) };
+}
+
+export function accountExists(account: string): boolean {
+  return loadAccount(account) !== null;
+}
+
+// Store a raw 64-byte Ed25519 secret key (seed + public key), overwriting any
+// existing entry for this account. Used by the CLI on keygen / import.
+export function storeSecretKey(account: string, secretKey: Uint8Array): void {
+  if (secretKey.length !== 64) {
+    throw new Error(`secret key must be 64 bytes (got ${secretKey.length})`);
   }
+  new Entry(SERVICE, account).setPassword(naclUtil.encodeBase64(secretKey));
+}
+
+export function loadOrGenerate(account: string): AgentKeys {
+  const existing = loadAccount(account);
+  if (existing) return existing;
 
   const kp = nacl.sign.keyPair();
-  entry.setPassword(naclUtil.encodeBase64(kp.secretKey));
-
+  storeSecretKey(account, kp.secretKey);
   return { account, secretKey: kp.secretKey, publicKey: kp.publicKey };
 }
 

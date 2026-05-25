@@ -36,6 +36,5 @@ export const config = Object.freeze({
   conversation: { defaultLimit: 50, maxLimit: 200 },
 });
 
-console.error(
-  `[sen2 ${config.version}] cluster=${config.cluster} account=${config.account} rpc=${config.rpc.http} sns=${config.rpc.sns}`,
-);
+// Note: no logging here on purpose — config is imported by both the MCP server
+// and the `sen2` CLI, and only the server should print the startup banner.

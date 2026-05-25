@@ -31,6 +31,19 @@ const myAddress = decoder.decode(me.publicKey);
 const rpc = getRpc();
 const rpcSubs = getRpcSubscriptions();
 
+// Below this the wallet can't even cover the ~5,000-lamport transaction fee.
+const MIN_SEND_LAMPORTS = 5000n;
+
+console.error(
+  `[sen2 ${config.version}] cluster=${config.cluster} account=${config.account} rpc=${config.rpc.http} sns=${config.rpc.sns}`,
+);
+if (config.cluster === "mainnet-beta") {
+  console.error(
+    "[sen2] ⚠ MAINNET active — sends spend REAL SOL and are permanent and publicly visible. " +
+      "Back up your key now with `sen2 export`.",
+  );
+}
+
 const server = new McpServer(
   { name: "sen2", version: config.version },
   {
@@ -143,11 +156,15 @@ server.registerTool(
     }
 
     const { value: lamports } = await rpc.getBalance(myAddress).send();
-    if (lamports === 0n) {
+    if (lamports < MIN_SEND_LAMPORTS) {
+      const fundHint =
+        config.cluster === "mainnet-beta"
+          ? `Fund it by sending SOL to ${myAddress} from any wallet or exchange.`
+          : `Fund it (free):\n  solana airdrop 1 ${myAddress} --url ${config.cluster}\n` +
+            `  or paste the address at https://faucet.solana.com/`;
       return errText(
-        `Wallet ${myAddress} has 0 SOL on ${config.cluster}. Fund it first:\n` +
-          `  solana airdrop 1 ${myAddress} --url ${config.cluster}\n` +
-          `  or paste the address at https://faucet.solana.com/`,
+        `Wallet ${myAddress} has ${(Number(lamports) / 1e9).toFixed(6)} SOL on ${config.cluster} — ` +
+          `not enough for the ~0.000005 SOL transaction fee.\n${fundHint}`,
       );
     }
 

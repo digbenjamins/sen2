@@ -2,12 +2,20 @@ import nacl from "tweetnacl";
 import naclUtil from "tweetnacl-util";
 import { ed25519PublicToX25519, ed25519SecretToX25519 } from "./keys.js";
 
+// Envelope version byte (buf[0]). 0x01 is the SolVault-compatible base format
+// we send and read today.
+//
+// Version-byte allocation policy (locked pre-mainnet so on-chain data never
+// becomes ambiguous): 0x00–0x0F belong to the SolVault base protocol; sen2's
+// own future envelope types (capability hello, contact-list sync, a forward-
+// secret v2, etc.) MUST use 0x10+ so the two implementations never collide on
+// a version number.
 export const MESSAGE_VERSION = 0x01;
+export const SEN2_EXTENSION_VERSION_MIN = 0x10;
 export const ENVELOPE_HEADER_BYTES = 1 + 32 + 24;
 export const POLY1305_MAC_BYTES = 16;
 export const MEMO_MAX_BYTES = 566;
-export const MAX_PLAINTEXT_BYTES =
-  Math.floor((MEMO_MAX_BYTES * 3) / 4) - ENVELOPE_HEADER_BYTES - POLY1305_MAC_BYTES;
+export const MAX_PLAINTEXT_BYTES = Math.floor((MEMO_MAX_BYTES * 3) / 4) - ENVELOPE_HEADER_BYTES - POLY1305_MAC_BYTES;
 
 export interface EncryptResult {
   serialized: string;
@@ -15,11 +23,7 @@ export interface EncryptResult {
 }
 
 // Wire format: [version:1B][recipientPubKey:32B][nonce:24B][ciphertext:varB]
-export function encryptMessage(
-  plaintext: string,
-  senderEd25519Secret: Uint8Array,
-  recipientEd25519Public: Uint8Array,
-): EncryptResult {
+export function encryptMessage(plaintext: string, senderEd25519Secret: Uint8Array, recipientEd25519Public: Uint8Array): EncryptResult {
   const messageBytes = naclUtil.decodeUTF8(plaintext);
   const nonce = nacl.randomBytes(nacl.box.nonceLength);
 
@@ -51,11 +55,7 @@ export function extractRecipient(serialized: string): Uint8Array {
 
 // ECDH is symmetric: pass your own secret + the peer's public, regardless
 // of whether you sent or received the message.
-export function decryptMessage(
-  serialized: string,
-  myEd25519Secret: Uint8Array,
-  peerEd25519Public: Uint8Array,
-): string {
+export function decryptMessage(serialized: string, myEd25519Secret: Uint8Array, peerEd25519Public: Uint8Array): string {
   const buf = naclUtil.decodeBase64(serialized);
   if (buf[0] !== MESSAGE_VERSION) {
     throw new Error(`Unsupported envelope version: 0x${buf[0].toString(16)}`);

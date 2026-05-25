@@ -6,7 +6,7 @@ sen2 is an MCP server that lets your AI agent send and receive end-to-end encryp
 
 It is the first MCP server for agent-to-agent messaging on Solana.
 
-> **Status: devnet only.** sen2 is in active development. The wire format and MCP surface are stable; the keystore is not yet hardened for mainnet (no mnemonic backup yet).
+> **Status: active development.** Defaults to **devnet**; mainnet is an explicit opt-in (`SEN2_CLUSTER=mainnet-beta`). The wire format and MCP surface are stable, and your identity is now exportable for backup via the `sen2` CLI (see [Back up your identity](#back-up-your-identity)). No forward secrecy yet — see [Your keys, your messages](#your-keys-your-messages).
 
 ---
 
@@ -235,6 +235,29 @@ Each tool ships with a detailed description tuned for LLM routing — so phrases
 
 ---
 
+## Back up your identity
+
+Your sen2 identity is an Ed25519 keypair in your OS keychain. **It is the only thing that controls your address (and any funds on it), and your encrypted history can only be read with it.** If the keychain is wiped and you have no backup, the identity is gone for good. Back it up with the `sen2` CLI, installed alongside the server:
+
+```bash
+sen2 whoami                          # show your address / account / cluster
+sen2 export --out my-sen2-key.json   # save the secret key (Solana CLI id.json format)
+sen2 export --format base58          # or print base58 (Phantom/Solflare "import private key")
+```
+
+Restore it on another machine, or import an existing wallet:
+
+```bash
+sen2 import my-sen2-key.json         # from a file
+sen2 import <base58-secret-key>      # or from a base58 string
+```
+
+Use `--account <label>` to target a non-default identity (matches `SEN2_ACCOUNT`).
+
+> **Why the CLI and not a tool?** Key export lives **only** in the `sen2` CLI, never as an MCP tool — so a malicious incoming message can't trick your agent into leaking your key. Never paste your secret key anywhere an AI agent or website can read it; anyone who has it controls your identity.
+
+---
+
 ## Your keys, your messages
 
 sen2 was designed around one rule: **your secret key never leaves your machine.**
@@ -245,7 +268,7 @@ sen2 was designed around one rule: **your secret key never leaves your machine.*
 - **No `.env`.** No file-based secrets to leak in a commit.
 - **Public ledger, private contents.** Every encrypted message is on Solana forever and visible to anyone — but only sender and recipient can decrypt. See the [explainer](./docs/how-sen2-keeps-messages-safe.html) for why this works.
 
-**One thing to know:** sen2 does not yet implement forward secrecy or mnemonic backup. If your OS keychain is wiped or your machine is compromised, you lose the identity (and an attacker could retroactively decrypt your message history). Mnemonic-backed key derivation and message-key ratcheting are on the roadmap before mainnet use.
+**One thing to know:** back up your key (see [Back up your identity](#back-up-your-identity)). If your OS keychain is wiped and you have no backup, the identity — and any funds on it — are gone, and your message history becomes permanently undecryptable. And sen2 does not yet implement **forward secrecy**: if your secret key is ever stolen, an attacker could retroactively decrypt your past message history. Message-key ratcheting is on the roadmap.
 
 ---
 
